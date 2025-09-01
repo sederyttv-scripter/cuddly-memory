@@ -334,9 +334,15 @@ function UILib:CreateTab(name, icon)
     local function selectTab()
         -- Deselect all tabs
         for _, tab in ipairs(self.Tabs) do
-            tab.Page.Visible = false
-            tab.Button.BackgroundColor3 = THEME.SurfaceHover
-            tab.Text.TextColor3 = THEME.TextSecondary
+            if tab.Page then
+                tab.Page.Visible = false
+            end
+            if tab.Button then
+                tab.Button.BackgroundColor3 = THEME.SurfaceHover
+            end
+            if tab.Text then
+                tab.Text.TextColor3 = THEME.TextSecondary
+            end
             if tab.Icon then
                 tab.Icon.ImageColor3 = THEME.TextSecondary
             end
@@ -353,8 +359,18 @@ function UILib:CreateTab(name, icon)
         self.CurrentTab = name
     end
 
-    TabButton.MouseButton1Click:Connect(selectTab)
-    addHoverEffect(TabButton, THEME.Primary, THEME.SurfaceHover)
+    -- Custom hover effect for tab button (since it changes states)
+    TabButton.MouseEnter:Connect(function()
+        if self.CurrentTab ~= name then
+            TweenService:Create(TabButton, TWEEN_INFO_QUICK, {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+        end
+    end)
+    
+    TabButton.MouseLeave:Connect(function()
+        if self.CurrentTab ~= name then
+            TweenService:Create(TabButton, TWEEN_INFO_QUICK, {BackgroundColor3 = THEME.SurfaceHover}):Play()
+        end
+    end)
 
     -- Tab object with enhanced methods
     local tabTable = {
