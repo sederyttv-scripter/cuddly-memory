@@ -1,4 +1,4 @@
--- Enhanced High-Quality UI Library for Roblox (Fixed: no name collisions)
+-- Enhanced High-Quality UI Library for Roblox (Complete, Minimize fixed, no name collisions)
 local UILib = {}
 UILib.Tabs = {}
 UILib.CurrentTab = nil
@@ -8,8 +8,8 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 -- Tweens
-local TWEEN_INFO_QUICK = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local TWEEN_INFO_SMOOTH = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_INFO_QUICK = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_INFO_SMOOTH = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 -- Theme
 local THEME = {
@@ -26,7 +26,7 @@ local THEME = {
     Shadow = Color3.fromRGB(0, 0, 0)
 }
 
--- Utils
+-- Utility helpers
 local function createCorner(parent, radius)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, radius or 6)
@@ -50,7 +50,7 @@ local function createShadow(parent)
     shadow.Position = UDim2.new(0, -3, 0, -3)
     shadow.BackgroundColor3 = THEME.Shadow
     shadow.BackgroundTransparency = 0.8
-    shadow.ZIndex = parent.ZIndex - 1
+    shadow.ZIndex = math.max((parent.ZIndex or 1) - 1, 1)
     shadow.Parent = parent.Parent
     createCorner(shadow, 8)
     return shadow
@@ -63,7 +63,6 @@ local function addHoverEffect(element, hoverColor, originalColor)
             TweenService:Create(element, TWEEN_INFO_QUICK, {BackgroundColor3 = hoverColor}):Play()
         end)
     end)
-
     element.MouseLeave:Connect(function()
         pcall(function()
             TweenService:Create(element, TWEEN_INFO_QUICK, {BackgroundColor3 = originalColor}):Play()
@@ -71,7 +70,7 @@ local function addHoverEffect(element, hoverColor, originalColor)
     end)
 end
 
--- Create window
+-- Create main window
 function UILib:CreateWindow(title, size, config)
     local Players = game:GetService("Players")
     local player = Players.LocalPlayer
@@ -87,7 +86,7 @@ function UILib:CreateWindow(title, size, config)
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = PlayerGui
 
-    -- Window
+    -- Main window frame
     local Window = Instance.new("Frame")
     Window.Name = "MainWindow"
     Window.Size = windowSize
@@ -145,7 +144,9 @@ function UILib:CreateWindow(title, size, config)
     addHoverEffect(CloseButton, Color3.fromRGB(255, 100, 100), THEME.Danger)
 
     CloseButton.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
+        if ScreenGui and ScreenGui.Parent then
+            ScreenGui:Destroy()
+        end
     end)
 
     -- Minimize button
@@ -165,7 +166,7 @@ function UILib:CreateWindow(title, size, config)
     createCorner(MinimizeButton, 6)
     addHoverEffect(MinimizeButton, THEME.PrimaryHover, THEME.Primary)
 
-    -- Content
+    -- Main content area (created after MinimizeButton so we can reference it below)
     local ContentFrame = Instance.new("Frame")
     ContentFrame.Name = "Content"
     ContentFrame.Size = UDim2.new(1, 0, 1, -40)
@@ -183,6 +184,7 @@ function UILib:CreateWindow(title, size, config)
     TabsFrame.ZIndex = 102
     TabsFrame.Parent = ContentFrame
 
+    -- Tabs scrolling
     local TabsScrollFrame = Instance.new("ScrollingFrame")
     TabsScrollFrame.Name = "TabsScroll"
     TabsScrollFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -213,7 +215,7 @@ function UILib:CreateWindow(title, size, config)
     PagesFrame.ZIndex = 102
     PagesFrame.Parent = ContentFrame
 
-    -- Store references
+    -- Store refs
     self.Window = Window
     self.ScreenGui = ScreenGui
     self.TabsFrame = TabsScrollFrame
@@ -251,14 +253,47 @@ function UILib:CreateWindow(title, size, config)
         end
     end)
 
+    -- Minimize behaviour (safe + smooth)
+    do
+        local isMinimized = false
+        local originalWindowSize = Window.Size
+        local minimizeTweenDuration = TWEEN_INFO_SMOOTH.Time or 0.28
+
+        MinimizeButton.MouseButton1Click:Connect(function()
+            if not Window or not ContentFrame then return end
+            if isMinimized then
+                -- restore
+                ContentFrame.Visible = true
+                pcall(function()
+                    TweenService:Create(Window, TWEEN_INFO_SMOOTH, {Size = originalWindowSize}):Play()
+                end)
+                MinimizeButton.Text = "–"
+            else
+                -- minimize (shrink vertically to titlebar height)
+                pcall(function()
+                    TweenService:Create(Window, TWEEN_INFO_SMOOTH, {
+                        Size = UDim2.new(originalWindowSize.X.Scale, originalWindowSize.X.Offset, 0, 40)
+                    }):Play()
+                end)
+                task.delay(minimizeTweenDuration, function()
+                    if Window and Window.Parent then
+                        ContentFrame.Visible = false
+                    end
+                end)
+                MinimizeButton.Text = "+"
+            end
+            isMinimized = not isMinimized
+        end)
+    end
+
     return self
 end
 
--- Create Tab (fixed/durable, no name collisions)
+-- Create Tab (clean API: methods named AddButton/AddToggle/AddTextBox/AddLabel to avoid collisions)
 function UILib:CreateTab(name, icon)
     local tabIndex = #self.Tabs + 1
 
-    -- Tab button (UI instance kept as 'Button')
+    -- Tab button UI instance
     local TabButton = Instance.new("TextButton")
     TabButton.Name = "Tab_" .. name
     TabButton.Size = UDim2.new(1, -5, 0, 40)
@@ -271,7 +306,7 @@ function UILib:CreateTab(name, icon)
 
     createCorner(TabButton, 8)
 
-    -- Tab icon (optional)
+    -- Optional icon (UI instance)
     local TabIcon
     if icon then
         TabIcon = Instance.new("ImageLabel")
@@ -284,7 +319,7 @@ function UILib:CreateTab(name, icon)
         TabIcon.Parent = TabButton
     end
 
-    -- Tab text (kept as 'Text')
+    -- Tab text (UI instance)
     local TabText = Instance.new("TextLabel")
     TabText.Name = "TabText"
     TabText.Size = UDim2.new(1, icon and -40 or -20, 1, 0)
@@ -298,7 +333,7 @@ function UILib:CreateTab(name, icon)
     TabText.ZIndex = 105
     TabText.Parent = TabButton
 
-    -- Page
+    -- Page (scrolling frame)
     local Page = Instance.new("ScrollingFrame")
     Page.Name = "Page_" .. name
     Page.Size = UDim2.new(1, -20, 1, -20)
@@ -326,26 +361,26 @@ function UILib:CreateTab(name, icon)
         Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 40)
     end)
 
-    -- selectTab (robust)
+    -- selectTab (defensive)
     local function selectTab()
         for _, tab in ipairs(self.Tabs) do
             if type(tab) == "table" then
                 if tab.Page and typeof(tab.Page) == "Instance" then
                     pcall(function() tab.Page.Visible = false end)
                 end
-                if tab.Button and typeof(tab.Button) == "Instance" then
-                    pcall(function() tab.Button.BackgroundColor3 = THEME.SurfaceHover end)
+                if tab.ButtonUI and typeof(tab.ButtonUI) == "Instance" then
+                    pcall(function() tab.ButtonUI.BackgroundColor3 = THEME.SurfaceHover end)
                 end
-                if tab.Text and typeof(tab.Text) == "Instance" then
-                    pcall(function() tab.Text.TextColor3 = THEME.TextSecondary end)
+                if tab.TextUI and typeof(tab.TextUI) == "Instance" then
+                    pcall(function() tab.TextUI.TextColor3 = THEME.TextSecondary end)
                 end
-                if tab.Icon and typeof(tab.Icon) == "Instance" then
-                    pcall(function() tab.Icon.ImageColor3 = THEME.TextSecondary end)
+                if tab.IconUI and typeof(tab.IconUI) == "Instance" then
+                    pcall(function() tab.IconUI.ImageColor3 = THEME.TextSecondary end)
                 end
             end
         end
 
-        -- show the selected
+        -- show selected tab
         pcall(function() Page.Visible = true end)
         pcall(function() TabButton.BackgroundColor3 = THEME.Primary end)
         pcall(function() TabText.TextColor3 = THEME.Text end)
@@ -359,17 +394,17 @@ function UILib:CreateTab(name, icon)
     TabButton.MouseButton1Click:Connect(selectTab)
     addHoverEffect(TabButton, THEME.Primary, THEME.SurfaceHover)
 
-    -- Tab object (keeps UI instances under keys that won't be overwritten by methods)
+    -- Tab object: keep UI instances on keys ending with UI to avoid method collisions
     local tabTable = {
-        Button = TabButton, -- UI instance
+        ButtonUI = TabButton,
         Page = Page,
-        Text = TabText,
-        Icon = TabIcon,
+        TextUI = TabText,
+        IconUI = TabIcon,
         Layout = PageLayout
     }
 
-    -- Public API: AddButton (was Button before, renamed to avoid colliding with Button instance)
-    function tabTable:AddButton(text, callback, config)
+    -- Public API: Button (method) - creates a button UI inside the tab page
+    function tabTable:Button(text, callback, config)
         config = config or {}
         local ButtonFrame = Instance.new("Frame")
         ButtonFrame.Name = "ButtonFrame"
@@ -396,7 +431,7 @@ function UILib:CreateTab(name, icon)
 
         Btn.MouseButton1Click:Connect(function()
             TweenService:Create(Btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {Size = UDim2.new(0.98, 0, 0.9, 0)}):Play()
-            task.wait(0.1)
+            task.wait(0.09)
             TweenService:Create(Btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
             if callback then pcall(callback) end
         end)
@@ -404,8 +439,8 @@ function UILib:CreateTab(name, icon)
         return Btn
     end
 
-    -- Public API: AddToggle (was Toggle)
-    function tabTable:AddToggle(text, default, callback, config)
+    -- Public API: Toggle (method) - creates a toggle UI and returns (ToggleFrame, state)
+    function tabTable:Toggle(text, default, callback, config)
         config = config or {}
         local state = default and true or false
 
@@ -478,8 +513,8 @@ function UILib:CreateTab(name, icon)
         return ToggleFrame, state
     end
 
-    -- Public API: AddTextBox (was TextBox)
-    function tabTable:AddTextBox(placeholder, callback, config)
+    -- Public API: TextBox (method) - returns the TextBox instance
+    function tabTable:TextBox(placeholder, callback, config)
         config = config or {}
 
         local TextBoxFrame = Instance.new("Frame")
@@ -525,8 +560,8 @@ function UILib:CreateTab(name, icon)
         return TB
     end
 
-    -- Public API: AddLabel (was Label)
-    function tabTable:AddLabel(text, config)
+    -- Public API: Label (method) - returns TextLabel
+    function tabTable:Label(text, config)
         config = config or {}
 
         local LabelFrame = Instance.new("Frame")
@@ -552,13 +587,29 @@ function UILib:CreateTab(name, icon)
         return Label
     end
 
-    -- Save tab
+    -- Save tab object (store UI instance keys with suffix UI to avoid collision with methods)
     table.insert(self.Tabs, tabTable)
 
     -- Auto-select first tab
     if tabIndex == 1 then
         task.defer(function()
-            pcall(selectTab)
+            pcall(function()
+                for _, t in ipairs(self.Tabs) do
+                    if t.Page and typeof(t.Page) == "Instance" then
+                        t.Page.Visible = false
+                    end
+                    if t.ButtonUI and typeof(t.ButtonUI) == "Instance" then
+                        t.ButtonUI.BackgroundColor3 = THEME.SurfaceHover
+                    end
+                    if t.TextUI and typeof(t.TextUI) == "Instance" then
+                        t.TextUI.TextColor3 = THEME.TextSecondary
+                    end
+                end
+                Page.Visible = true
+                TabButton.BackgroundColor3 = THEME.Primary
+                TabText.TextColor3 = THEME.Text
+                self.CurrentTab = name
+            end)
         end)
     end
 
