@@ -1,4 +1,4 @@
--- Enhanced High-Quality UI Library for Roblox (Fixed)
+-- Enhanced High-Quality UI Library for Roblox (Fixed: no name collisions)
 local UILib = {}
 UILib.Tabs = {}
 UILib.CurrentTab = nil
@@ -254,11 +254,11 @@ function UILib:CreateWindow(title, size, config)
     return self
 end
 
--- Create Tab (fixed/durable)
+-- Create Tab (fixed/durable, no name collisions)
 function UILib:CreateTab(name, icon)
     local tabIndex = #self.Tabs + 1
 
-    -- Tab button
+    -- Tab button (UI instance kept as 'Button')
     local TabButton = Instance.new("TextButton")
     TabButton.Name = "Tab_" .. name
     TabButton.Size = UDim2.new(1, -5, 0, 40)
@@ -284,7 +284,7 @@ function UILib:CreateTab(name, icon)
         TabIcon.Parent = TabButton
     end
 
-    -- Tab text
+    -- Tab text (kept as 'Text')
     local TabText = Instance.new("TextLabel")
     TabText.Name = "TabText"
     TabText.Size = UDim2.new(1, icon and -40 or -20, 1, 0)
@@ -326,7 +326,7 @@ function UILib:CreateTab(name, icon)
         Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 40)
     end)
 
-    -- selectTab (robust: checks types before indexing)
+    -- selectTab (robust)
     local function selectTab()
         for _, tab in ipairs(self.Tabs) do
             if type(tab) == "table" then
@@ -359,17 +359,17 @@ function UILib:CreateTab(name, icon)
     TabButton.MouseButton1Click:Connect(selectTab)
     addHoverEffect(TabButton, THEME.Primary, THEME.SurfaceHover)
 
-    -- Tab object
+    -- Tab object (keeps UI instances under keys that won't be overwritten by methods)
     local tabTable = {
-        Button = TabButton,
+        Button = TabButton, -- UI instance
         Page = Page,
         Text = TabText,
         Icon = TabIcon,
         Layout = PageLayout
     }
 
-    -- Button method
-    function tabTable:Button(text, callback, config)
+    -- Public API: AddButton (was Button before, renamed to avoid colliding with Button instance)
+    function tabTable:AddButton(text, callback, config)
         config = config or {}
         local ButtonFrame = Instance.new("Frame")
         ButtonFrame.Name = "ButtonFrame"
@@ -404,8 +404,8 @@ function UILib:CreateTab(name, icon)
         return Btn
     end
 
-    -- Toggle method
-    function tabTable:Toggle(text, default, callback, config)
+    -- Public API: AddToggle (was Toggle)
+    function tabTable:AddToggle(text, default, callback, config)
         config = config or {}
         local state = default and true or false
 
@@ -478,8 +478,8 @@ function UILib:CreateTab(name, icon)
         return ToggleFrame, state
     end
 
-    -- TextBox method
-    function tabTable:TextBox(placeholder, callback, config)
+    -- Public API: AddTextBox (was TextBox)
+    function tabTable:AddTextBox(placeholder, callback, config)
         config = config or {}
 
         local TextBoxFrame = Instance.new("Frame")
@@ -525,8 +525,8 @@ function UILib:CreateTab(name, icon)
         return TB
     end
 
-    -- Label
-    function tabTable:Label(text, config)
+    -- Public API: AddLabel (was Label)
+    function tabTable:AddLabel(text, config)
         config = config or {}
 
         local LabelFrame = Instance.new("Frame")
@@ -557,7 +557,6 @@ function UILib:CreateTab(name, icon)
 
     -- Auto-select first tab
     if tabIndex == 1 then
-        -- small delay to ensure layout/instances are ready
         task.defer(function()
             pcall(selectTab)
         end)
